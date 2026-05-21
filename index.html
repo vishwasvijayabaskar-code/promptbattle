@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PromptBattle — Side-by-Side LLM Comparison</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --border: #2a2a2a;
+      --text: #e0e0e0;
+      --muted: #888;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --orange: #f59e0b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .header h1 span { color: var(--accent); }
+
+    .header .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .config-bar {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .config-bar label {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .config-bar input, .config-bar select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      min-width: 180px;
+    }
+
+    .config-bar input:focus, .config-bar select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .prompt-area {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .prompt-area textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .prompt-area textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .prompt-actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .battle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      min-height: 400px;
+    }
+
+    @media (max-width: 768px) {
+      .battle-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-header .model-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .panel-header .model-meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 12px;
+    }
+
+    .panel-header .model-meta .time { color: var(--green); }
+    .panel-header .model-meta .tokens { color: var(--orange); }
+
+    .panel-body {
+      padding: 16px;
+      flex: 1;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    }
+
+    .panel-body .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: var(--accent);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .panel-body .placeholder {
+      color: var(--muted);
+      font-family: inherit;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .status-idle { background: var(--surface); color: var(--muted); }
+    .status-streaming { background: #6366f120; color: var(--accent); }
+    .status-done { background: #22c55e20; color: var(--green); }
+    .status-error { background: #ef444420; color: var(--red); }
+
+    .keys-notice {
+      padding: 12px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .keys-notice code {
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Prompt<span>Battle</span> ⚔️</h1>
+      <div class="subtitle">Compare LLM responses side-by-side. Bring your own API keys.</div>
+    </div>
+  </div>
+
+  <div class="keys-notice">
+    API keys stay in your browser (localStorage). Never sent anywhere except the provider's API.
+    Set them below — they persist across sessions.
+  </div>
+
+  <div class="config-bar">
+    <label>
+      OpenAI Key
+      <input type="password" id="openai-key" placeholder="sk-..." />
+    </label>
+    <label>
+      Anthropic Key
+      <input type="password" id="anthropic-key" placeholder="sk-ant-..." />
+    </label>
+    <label>
+      Gemini Key
+      <input type="password" id="gemini-key" placeholder="AI..." />
+    </label>
+    <label>
+      Left Model
+      <select id="model-left">
+        <option value="gpt-4o">GPT-4o</option>
+        <option value="gpt-4o-mini">GPT-4o Mini</option>
+        <option value="claude-sonnet-4-20250514" selected>Claude Sonnet 4</option>
+        <option value="claude-haiku-4-20250414">Claude Haiku 4</option>
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+      </select>
+    </label>
+    <label>
+      Right Model
+      <select id="model-right">
+        <option value="gpt-4o" selected>GPT-4o</option>
+        <option value="gpt-4o-mini">GPT-4o Mini</option>
+        <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+        <option value="claude-haiku-4-20250414">Claude Haiku 4</option>
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="prompt-area">
+    <textarea id="prompt" placeholder="Enter your prompt here... (Ctrl+Enter to send)" rows="3"></textarea>
+    <div class="prompt-actions">
+      <button class="btn btn-primary" id="send-btn" onclick="battle()">⚔️ Battle</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <div class="battle-grid">
+    <div class="panel" id="panel-left">
+      <div class="panel-header">
+        <span class="model-name" id="name-left">Claude Sonnet 4</span>
+        <div class="model-meta">
+          <span class="status-badge status-idle" id="status-left">Idle</span>
+          <span class="time" id="time-left"></span>
+          <span class="tokens" id="tokens-left"></span>
+        </div>
+      </div>
+      <div class="panel-body" id="body-left">
+        <span class="placeholder">Response will appear here...</span>
+      </div>
+    </div>
+    <div class="panel" id="panel-right">
+      <div class="panel-header">
+        <span class="model-name" id="name-right">GPT-4o</span>
+        <div class="model-meta">
+          <span class="status-badge status-idle" id="status-right">Idle</span>
+          <span class="time" id="time-right"></span>
+          <span class="tokens" id="tokens-right"></span>
+        </div>
+      </div>
+      <div class="panel-body" id="body-right">
+        <span class="placeholder">Response will appear here...</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─── Persistence ─────────────────────────────────────────────────────
+    const keys = ['openai-key', 'anthropic-key', 'gemini-key', 'model-left', 'model-right'];
+    keys.forEach(id => {
+      const el = document.getElementById(id);
+      const saved = localStorage.getItem(`pb_${id}`);
+      if (saved) el.value = saved;
+      el.addEventListener('change', () => localStorage.setItem(`pb_${id}`, el.value));
+      el.addEventListener('input', () => localStorage.setItem(`pb_${id}`, el.value));
+    });
+
+    // Update model names on change
+    document.getElementById('model-left').addEventListener('change', (e) => {
+      document.getElementById('name-left').textContent = e.target.selectedOptions[0].text;
+    });
+    document.getElementById('model-right').addEventListener('change', (e) => {
+      document.getElementById('name-right').textContent = e.target.selectedOptions[0].text;
+    });
+
+    // Init names
+    document.getElementById('name-left').textContent =
+      document.getElementById('model-left').selectedOptions[0].text;
+    document.getElementById('name-right').textContent =
+      document.getElementById('model-right').selectedOptions[0].text;
+
+    // Ctrl+Enter to send
+    document.getElementById('prompt').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        battle();
+      }
+    });
+
+    // ─── Provider Logic ──────────────────────────────────────────────────
+    function getProvider(model) {
+      if (model.startsWith('gpt') || model.startsWith('o3') || model.startsWith('o1'))
+        return 'openai';
+      if (model.startsWith('claude')) return 'anthropic';
+      if (model.startsWith('gemini')) return 'gemini';
+      return 'openai';
+    }
+
+    function getKey(provider) {
+      const map = {
+        openai: document.getElementById('openai-key').value,
+        anthropic: document.getElementById('anthropic-key').value,
+        gemini: document.getElementById('gemini-key').value,
+      };
+      return map[provider] || '';
+    }
+
+    // ─── Streaming ───────────────────────────────────────────────────────
+    async function streamModel(model, prompt, side) {
+      const provider = getProvider(model);
+      const key = getKey(provider);
+      const bodyEl = document.getElementById(`body-${side}`);
+      const statusEl = document.getElementById(`status-${side}`);
+      const timeEl = document.getElementById(`time-${side}`);
+      const tokensEl = document.getElementById(`tokens-${side}`);
+
+      bodyEl.innerHTML = '<span class="cursor"></span>';
+      statusEl.className = 'status-badge status-streaming';
+      statusEl.textContent = 'Streaming';
+      timeEl.textContent = '';
+      tokensEl.textContent = '';
+
+      if (!key) {
+        bodyEl.textContent = `No ${provider} API key set.`;
+        statusEl.className = 'status-badge status-error';
+        statusEl.textContent = 'Error';
+        return;
+      }
+
+      const start = performance.now();
+      let text = '';
+      let tokenCount = 0;
+
+      try {
+        let url, headers, body;
+
+        if (provider === 'openai') {
+          url = 'https://api.openai.com/v1/chat/completions';
+          headers = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+          body = JSON.stringify({
+            model, stream: true,
+            messages: [{ role: 'user', content: prompt }],
+          });
+        } else if (provider === 'anthropic') {
+          url = 'https://api.anthropic.com/v1/messages';
+          headers = {
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+            'Content-Type': 'application/json',
+          };
+          body = JSON.stringify({
+            model, max_tokens: 4096, stream: true,
+            messages: [{ role: 'user', content: prompt }],
+          });
+        } else if (provider === 'gemini') {
+          url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${key}`;
+          headers = { 'Content-Type': 'application/json' };
+          body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+        }
+
+        const res = await fetch(url, { method: 'POST', headers, body });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error?.message || `HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (provider === 'openai') {
+              if (trimmed === 'data: [DONE]') continue;
+              if (!trimmed.startsWith('data: ')) continue;
+              try {
+                const json = JSON.parse(trimmed.slice(6));
+                const delta = json.choices?.[0]?.delta?.content || '';
+                if (delta) { text += delta; tokenCount++; }
+              } catch {}
+            } else if (provider === 'anthropic') {
+              if (!trimmed.startsWith('data: ')) continue;
+              try {
+                const json = JSON.parse(trimmed.slice(6));
+                if (json.type === 'content_block_delta') {
+                  const delta = json.delta?.text || '';
+                  if (delta) { text += delta; tokenCount++; }
+                }
+              } catch {}
+            } else if (provider === 'gemini') {
+              if (!trimmed.startsWith('data: ')) continue;
+              try {
+                const json = JSON.parse(trimmed.slice(6));
+                const delta = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                if (delta) { text += delta; tokenCount++; }
+              } catch {}
+            }
+
+            bodyEl.textContent = text;
+            bodyEl.scrollTop = bodyEl.scrollHeight;
+          }
+        }
+
+        const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+        timeEl.textContent = `${elapsed}s`;
+        tokensEl.textContent = `~${tokenCount} chunks`;
+        statusEl.className = 'status-badge status-done';
+        statusEl.textContent = 'Done';
+        bodyEl.textContent = text;
+
+      } catch (err) {
+        bodyEl.textContent = `Error: ${err.message}`;
+        statusEl.className = 'status-badge status-error';
+        statusEl.textContent = 'Error';
+      }
+    }
+
+    // ─── Actions ─────────────────────────────────────────────────────────
+    async function battle() {
+      const prompt = document.getElementById('prompt').value.trim();
+      if (!prompt) return;
+
+      const modelLeft = document.getElementById('model-left').value;
+      const modelRight = document.getElementById('model-right').value;
+
+      document.getElementById('send-btn').disabled = true;
+
+      await Promise.all([
+        streamModel(modelLeft, prompt, 'left'),
+        streamModel(modelRight, prompt, 'right'),
+      ]);
+
+      document.getElementById('send-btn').disabled = false;
+    }
+
+    function clearAll() {
+      document.getElementById('prompt').value = '';
+      ['left', 'right'].forEach(side => {
+        document.getElementById(`body-${side}`).innerHTML =
+          '<span class="placeholder">Response will appear here...</span>';
+        document.getElementById(`status-${side}`).className = 'status-badge status-idle';
+        document.getElementById(`status-${side}`).textContent = 'Idle';
+        document.getElementById(`time-${side}`).textContent = '';
+        document.getElementById(`tokens-${side}`).textContent = '';
+      });
+    }
+  </script>
+</body>
+</html>
