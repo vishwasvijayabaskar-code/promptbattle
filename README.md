@@ -67,6 +67,14 @@ cp index.html docs/index.html
 # Deploy to Vercel, Netlify, or anywhere that serves static files
 ```
 
+## Also By Me
+
+- [oneshot](https://github.com/vishwasvijayabaskar-code/oneshot) — One command, any LLM, instant answers from terminal
+- [gitgenius](https://github.com/vishwasvijayabaskar-code/gitgenius) — AI-powered git commits, PR descriptions, changelogs
+- [aiterm](https://github.com/vishwasvijayabaskar-code/aiterm) — AI terminal assistant, auto-explain errors
+- [awesome-ai-agents](https://github.com/vishwasvijayabaskar-code/awesome-ai-agents) — Curated list of AI agent frameworks
+- [ai-system-design-primer](https://github.com/vishwasvijayabaskar-code/ai-system-design-primer) — System design for AI systems
+
 ## License
 
 MIT
