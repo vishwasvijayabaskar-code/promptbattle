@@ -308,7 +308,9 @@
       <select id="model-left">
         <option value="gpt-4o">GPT-4o</option>
         <option value="gpt-4o-mini">GPT-4o Mini</option>
+        <option value="o4-mini">o4-mini</option>
         <option value="claude-sonnet-4-20250514" selected>Claude Sonnet 4</option>
+        <option value="claude-opus-4-20250514">Claude Opus 4</option>
         <option value="claude-haiku-4-20250414">Claude Haiku 4</option>
         <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
         <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
@@ -319,7 +321,9 @@
       <select id="model-right">
         <option value="gpt-4o" selected>GPT-4o</option>
         <option value="gpt-4o-mini">GPT-4o Mini</option>
+        <option value="o4-mini">o4-mini</option>
         <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+        <option value="claude-opus-4-20250514">Claude Opus 4</option>
         <option value="claude-haiku-4-20250414">Claude Haiku 4</option>
         <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
         <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
@@ -448,7 +452,7 @@
 
     // ─── Provider Logic ──────────────────────────────────────────────────
     function getProvider(model) {
-      if (model.startsWith('gpt') || model.startsWith('o3') || model.startsWith('o1'))
+      if (model.startsWith('gpt') || model.startsWith('o3') || model.startsWith('o1') || model.startsWith('o4'))
         return 'openai';
       if (model.startsWith('claude')) return 'anthropic';
       if (model.startsWith('gemini')) return 'gemini';
