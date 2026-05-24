@@ -149,6 +149,19 @@
       background: var(--bg);
       display: flex;
       flex-direction: column;
+      transition: border-color 0.3s;
+    }
+
+    .panel.winner {
+      border-color: var(--green);
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.15);
+    }
+
+    .panel.winner .panel-header::after {
+      content: '🏆 Faster';
+      font-size: 11px;
+      color: var(--green);
+      margin-left: 8px;
     }
 
     .panel-header {
@@ -261,6 +274,17 @@
       margin-left: 8px;
     }
 
+    .btn-copy {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      opacity: 0.5;
+      transition: opacity 0.2s;
+      padding: 2px 4px;
+    }
+    .btn-copy:hover { opacity: 1; }
+
     .keys-notice {
       padding: 12px 24px;
       background: var(--surface);
@@ -348,6 +372,7 @@
           <span class="status-badge status-idle" id="status-left">Idle</span>
           <span class="time" id="time-left"></span>
           <span class="tokens" id="tokens-left"></span>
+          <button class="btn-copy" onclick="copyResponse('left')" title="Copy response">📋</button>
         </div>
       </div>
       <div class="panel-body" id="body-left">
@@ -361,6 +386,7 @@
           <span class="status-badge status-idle" id="status-right">Idle</span>
           <span class="time" id="time-right"></span>
           <span class="tokens" id="tokens-right"></span>
+          <button class="btn-copy" onclick="copyResponse('right')" title="Copy response">📋</button>
         </div>
       </div>
       <div class="panel-body" id="body-right">
@@ -597,6 +623,8 @@
     }
 
     // ─── Actions ─────────────────────────────────────────────────────────
+    const battleStats = { left: {}, right: {} };
+
     async function battle() {
       const prompt = document.getElementById('prompt').value.trim();
       if (!prompt) return;
@@ -605,18 +633,41 @@
       const modelLeft = document.getElementById('model-left').value;
       const modelRight = document.getElementById('model-right').value;
 
+      // Clear previous winner indicators
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('winner'));
+
       document.getElementById('send-btn').disabled = true;
 
+      const startTime = performance.now();
       await Promise.all([
         streamModel(modelLeft, prompt, systemPrompt, 'left'),
         streamModel(modelRight, prompt, systemPrompt, 'right'),
       ]);
 
+      // Determine winner (faster response)
+      const timeLeft = parseFloat(document.getElementById('time-left').textContent);
+      const timeRight = parseFloat(document.getElementById('time-right').textContent);
+      if (timeLeft && timeRight && timeLeft !== timeRight) {
+        const winnerSide = timeLeft < timeRight ? 'left' : 'right';
+        document.getElementById(`panel-${winnerSide}`).classList.add('winner');
+      }
+
       document.getElementById('send-btn').disabled = false;
+    }
+
+    function copyResponse(side) {
+      const bodyEl = document.getElementById(`body-${side}`);
+      const text = bodyEl.innerText || bodyEl.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = bodyEl.closest('.panel').querySelector('.btn-copy');
+        btn.textContent = '✓';
+        setTimeout(() => btn.textContent = '📋', 1500);
+      });
     }
 
     function clearAll() {
       document.getElementById('prompt').value = '';
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('winner'));
       ['left', 'right'].forEach(side => {
         document.getElementById(`body-${side}`).innerHTML =
           '<span class="placeholder">Response will appear here...</span>';
