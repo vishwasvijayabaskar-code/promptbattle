@@ -215,6 +215,52 @@
     .status-done { background: #22c55e20; color: var(--green); }
     .status-error { background: #ef444420; color: var(--red); }
 
+    .panel-body code {
+      background: #1e1e2e;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+    }
+
+    .panel-body pre {
+      background: #1e1e2e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin: 8px 0;
+      overflow-x: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .panel-body pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .panel-body h1, .panel-body h2, .panel-body h3 {
+      margin: 12px 0 6px;
+      font-weight: 700;
+    }
+
+    .panel-body h1 { font-size: 18px; }
+    .panel-body h2 { font-size: 16px; }
+    .panel-body h3 { font-size: 14px; }
+
+    .panel-body p { margin: 6px 0; }
+    .panel-body ul, .panel-body ol { margin: 6px 0 6px 20px; }
+    .panel-body li { margin: 2px 0; }
+    .panel-body strong { font-weight: 700; }
+    .panel-body em { font-style: italic; }
+
+    .word-count {
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: 8px;
+    }
+
     .keys-notice {
       padding: 12px 24px;
       background: var(--surface);
@@ -282,6 +328,7 @@
   </div>
 
   <div class="prompt-area">
+    <textarea id="system-prompt" placeholder="System prompt (optional)..." rows="1" style="font-size:13px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);color:var(--muted);resize:vertical;width:100%;padding:10px 14px;border-radius:8px;font-family:inherit;"></textarea>
     <textarea id="prompt" placeholder="Enter your prompt here... (Ctrl+Enter to send)" rows="3"></textarea>
     <div class="prompt-actions">
       <button class="btn btn-primary" id="send-btn" onclick="battle()">⚔️ Battle</button>
@@ -320,7 +367,7 @@
 
   <script>
     // ─── Persistence ─────────────────────────────────────────────────────
-    const keys = ['openai-key', 'anthropic-key', 'gemini-key', 'model-left', 'model-right'];
+    const keys = ['openai-key', 'anthropic-key', 'gemini-key', 'model-left', 'model-right', 'system-prompt'];
     keys.forEach(id => {
       const el = document.getElementById(id);
       const saved = localStorage.getItem(`pb_${id}`);
@@ -351,6 +398,54 @@
       }
     });
 
+    // ─── Markdown Renderer (lightweight, no deps) ─────────────────────────
+    function renderMarkdown(text) {
+      let html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      // Code blocks (``` ... ```)
+      html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+        `<pre><code>${code.trim()}</code></pre>`);
+
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      // Headers
+      html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+      // Bold and italic
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+      // Unordered lists
+      html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+      // Numbered lists
+      html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+      // Paragraphs (double newline)
+      html = html.replace(/\n\n/g, '</p><p>');
+      html = '<p>' + html + '</p>';
+
+      // Clean up empty paragraphs
+      html = html.replace(/<p>\s*<\/p>/g, '');
+      html = html.replace(/<p>\s*(<h[123]>)/g, '$1');
+      html = html.replace(/(<\/h[123]>)\s*<\/p>/g, '$1');
+      html = html.replace(/<p>\s*(<pre>)/g, '$1');
+      html = html.replace(/(<\/pre>)\s*<\/p>/g, '$1');
+      html = html.replace(/<p>\s*(<ul>)/g, '$1');
+      html = html.replace(/(<\/ul>)\s*<\/p>/g, '$1');
+
+      return html;
+    }
+
+    function countWords(text) {
+      return text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    }
+
     // ─── Provider Logic ──────────────────────────────────────────────────
     function getProvider(model) {
       if (model.startsWith('gpt') || model.startsWith('o3') || model.startsWith('o1'))
@@ -370,7 +465,7 @@
     }
 
     // ─── Streaming ───────────────────────────────────────────────────────
-    async function streamModel(model, prompt, side) {
+    async function streamModel(model, prompt, systemPrompt, side) {
       const provider = getProvider(model);
       const key = getKey(provider);
       const bodyEl = document.getElementById(`body-${side}`);
@@ -401,10 +496,10 @@
         if (provider === 'openai') {
           url = 'https://api.openai.com/v1/chat/completions';
           headers = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
-          body = JSON.stringify({
-            model, stream: true,
-            messages: [{ role: 'user', content: prompt }],
-          });
+          const messages = [];
+          if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+          messages.push({ role: 'user', content: prompt });
+          body = JSON.stringify({ model, stream: true, messages });
         } else if (provider === 'anthropic') {
           url = 'https://api.anthropic.com/v1/messages';
           headers = {
@@ -413,14 +508,18 @@
             'anthropic-dangerous-direct-browser-access': 'true',
             'Content-Type': 'application/json',
           };
-          body = JSON.stringify({
+          const payload = {
             model, max_tokens: 4096, stream: true,
             messages: [{ role: 'user', content: prompt }],
-          });
+          };
+          if (systemPrompt) payload.system = systemPrompt;
+          body = JSON.stringify(payload);
         } else if (provider === 'gemini') {
           url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${key}`;
           headers = { 'Content-Type': 'application/json' };
-          body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+          const payload = { contents: [{ parts: [{ text: prompt }] }] };
+          if (systemPrompt) payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+          body = JSON.stringify(payload);
         }
 
         const res = await fetch(url, { method: 'POST', headers, body });
@@ -472,17 +571,19 @@
               } catch {}
             }
 
-            bodyEl.textContent = text;
+            bodyEl.innerHTML = renderMarkdown(text);
             bodyEl.scrollTop = bodyEl.scrollHeight;
           }
         }
 
         const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+        const words = countWords(text);
         timeEl.textContent = `${elapsed}s`;
         tokensEl.textContent = `~${tokenCount} chunks`;
         statusEl.className = 'status-badge status-done';
         statusEl.textContent = 'Done';
-        bodyEl.textContent = text;
+        bodyEl.innerHTML = renderMarkdown(text) +
+          `<div class="word-count">${words} words</div>`;
 
       } catch (err) {
         bodyEl.textContent = `Error: ${err.message}`;
@@ -496,14 +597,15 @@
       const prompt = document.getElementById('prompt').value.trim();
       if (!prompt) return;
 
+      const systemPrompt = document.getElementById('system-prompt').value.trim();
       const modelLeft = document.getElementById('model-left').value;
       const modelRight = document.getElementById('model-right').value;
 
       document.getElementById('send-btn').disabled = true;
 
       await Promise.all([
-        streamModel(modelLeft, prompt, 'left'),
-        streamModel(modelRight, prompt, 'right'),
+        streamModel(modelLeft, prompt, systemPrompt, 'left'),
+        streamModel(modelRight, prompt, systemPrompt, 'right'),
       ]);
 
       document.getElementById('send-btn').disabled = false;
